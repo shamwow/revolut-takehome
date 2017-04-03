@@ -28,10 +28,10 @@ public class Main {
         HashMap<String, Object> output = new HashMap<>();
         output.put("message", message);
         Gson gson = new Gson();
-        halt(status, gson.toJson(output));
+        throw halt(status, gson.toJson(output));
     }
 
-    private static Map<String, String> parse(String body) {
+    private static HashMap<String, String> parse(String body) {
         if (body == null || body.equals("")) {
             return new HashMap<>();
         }
@@ -87,7 +87,7 @@ public class Main {
                 if (params.containsKey("initialBalance")) {
                     try {
                         initialBalance = Double.parseDouble(params.get("initialBalance"));
-                    } catch (NumberFormatException | ClassCastException e) {
+                    } catch (NumberFormatException | ClassCastException | NullPointerException e) {
                         end(400, Messages.UNPARSEABLE_AMOUNT);
                     }
                 }
@@ -139,7 +139,7 @@ public class Main {
                 try {
                     amt = Double.parseDouble(params.get("balance"));
                 }
-                catch (NumberFormatException | ClassCastException e) {
+                catch (NumberFormatException | ClassCastException | NullPointerException e) {
                     end(400, Messages.UNPARSEABLE_AMOUNT);
                 }
             }
@@ -169,7 +169,7 @@ public class Main {
                 try {
                     amt = Double.parseDouble(params.get("amount"));
                 }
-                catch (NumberFormatException | ClassCastException e) {
+                catch (NumberFormatException | ClassCastException | NullPointerException e) {
                     end(400, Messages.UNPARSEABLE_AMOUNT);
                 }
             }
