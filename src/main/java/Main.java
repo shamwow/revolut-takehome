@@ -37,10 +37,16 @@ public class Main {
     }
 
     private static Account getAccount(String accountNumber, String errorMessage) {
-        if (accountNumber == null || !accounts.containsKey(accountNumber)) {
+        if (accountNumber == null) {
             end(400, errorMessage);
         }
-        return accounts.get(accountNumber);
+
+        Account account = accounts.get(accountNumber);
+        if (account == null) {
+            end(400, errorMessage);
+        }
+
+        return account;
     }
 
     private static HashMap<String, String> parse(String body) {
