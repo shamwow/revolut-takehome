@@ -59,12 +59,6 @@ public class Main {
     }
 
     private static void defineRoutes() {
-        get("/wait", (Request req, Response res) -> {
-            int delay = req.queryParams().contains("seconds") ? Integer.parseInt(req.queryParams("seconds")) : 30;
-            TimeUnit.SECONDS.sleep(delay);
-            return "Done";
-        });
-
         get("/accounts/:number", (Request req, Response res) -> {
             String accountNumber = req.params(":number");
             Account account = getAccount(accountNumber, Messages.INVALID_ACCOUNT_NUMBER);
