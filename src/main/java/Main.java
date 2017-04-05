@@ -16,10 +16,14 @@ public class Main {
 
     interface Messages {
         String UNPARSEABLE_AMOUNT = "Unparseable amount value";
+        String NEGATIVE_AMOUNT = "Negative amount value";
+        String ZERO_AMOUNT = "Zero amount value";
+        String INSUFFICIENT_FUNDS = "Insufficient funds in from account";
         String INVALID_ACCOUNT_NUMBER = "Invalid account number";
         String INVALID_FROM_ACCOUNT_NUMBER = "Invalid from account number";
         String INVALID_TO_ACCOUNT_NUMBER = "Invalid to account number";
         String UNABLE_TO_PARSE_JSON = "Unable to parse json body";
+        String TO_AND_FROM_ACCOUNTS_SAME = "The to and from account numbers are the same";
         String SUCCESS = "success";
     }
 
@@ -102,6 +106,9 @@ public class Main {
                 if (params.containsKey("initialBalance")) {
                     try {
                         initialBalance = Double.parseDouble(params.get("initialBalance"));
+                        if (Double.compare(initialBalance, 0) < 0) {
+                            end(400, Messages.NEGATIVE_AMOUNT);
+                        }
                     } catch (NumberFormatException | ClassCastException | NullPointerException e) {
                         end(400, Messages.UNPARSEABLE_AMOUNT);
                     }
@@ -156,6 +163,9 @@ public class Main {
                 {
                     try {
                         amt = Double.parseDouble(params.get("balance"));
+                        if (Double.compare(amt, 0) < 0) {
+                            end(400, Messages.NEGATIVE_AMOUNT);
+                        }
                     } catch (NumberFormatException | ClassCastException | NullPointerException e) {
                         end(400, Messages.UNPARSEABLE_AMOUNT);
                     }
@@ -177,6 +187,11 @@ public class Main {
             Map<String, String> params = parse(req.body());
             String from = params.get("from");
             String to = params.get("to");
+
+            if (to.equals(from)) {
+                end(400, Messages.TO_AND_FROM_ACCOUNTS_SAME);
+            }
+
             double amt = 0;
 
             Account fromAccount = getAccount(from, Messages.INVALID_FROM_ACCOUNT_NUMBER);
@@ -197,6 +212,15 @@ public class Main {
                 {
                     try {
                         amt = Double.parseDouble(params.get("amount"));
+                        if (Double.compare(amt, 0) < 0) {
+                            end(400, Messages.NEGATIVE_AMOUNT);
+                        }
+                        if (Double.compare(amt, 0) == 0) {
+                            end(400, Messages.ZERO_AMOUNT);
+                        }
+                        if (Double.compare(amt, fromAccount.getBalance()) > 0) {
+                            end(400, Messages.INSUFFICIENT_FUNDS);
+                        }
                     } catch (NumberFormatException | ClassCastException | NullPointerException e) {
                         end(400, Messages.UNPARSEABLE_AMOUNT);
                     }

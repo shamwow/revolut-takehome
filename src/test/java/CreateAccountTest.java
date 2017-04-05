@@ -39,4 +39,18 @@ public class CreateAccountTest extends BaseTest {
         double amount = Double.parseDouble(Helpers.getAccountBalance(json.getString("account")));
         assertEquals(0, Double.compare(amount, 100));
     }
+
+    @Test
+    public void doesNotCreateAccountWithNegativeInitialAmount() throws Exception {
+        HttpResponse<JsonNode> res = Unirest.post("http://localhost:8080/accounts")
+                .header("accept", "application/json")
+                .body(new JSONObject()
+                        .put("initialBalance", "-100")
+                )
+                .asJson();
+
+        assertEquals(400, res.getStatus());
+        JSONObject json = res.getBody().getObject();
+        assertEquals(Main.Messages.NEGATIVE_AMOUNT, json.get("message"));
+    }
 }

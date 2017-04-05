@@ -22,7 +22,7 @@ public class SingleAccountGetTest extends BaseTest {
     @Test
     public void getActualAccount() throws Exception {
         accounts.add(Helpers.createAccount());
-        accounts.add(Helpers.createAccount("-100"));
+        accounts.add(Helpers.createAccount("100"));
 
         HttpResponse<JsonNode> res = Unirest.get("http://localhost:8080/accounts/" + accounts.get(0)).asJson();
         assertEquals(200, res.getStatus());
@@ -34,6 +34,6 @@ public class SingleAccountGetTest extends BaseTest {
         assertEquals(200, res.getStatus());
         json = res.getBody().getObject();
         balance = Double.parseDouble(json.getString("balance"));
-        assertEquals(0, Double.compare(balance, -100));
+        assertEquals(0, Double.compare(balance, 100));
     }
 }

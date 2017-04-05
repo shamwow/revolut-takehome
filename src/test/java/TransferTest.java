@@ -15,7 +15,7 @@ public class TransferTest extends BaseTest {
     public void createAccounts() throws Exception {
         accounts.add(Helpers.createAccount("100"));
         accounts.add(Helpers.createAccount("200"));
-        accounts.add(Helpers.createAccount("-200"));
+        accounts.add(Helpers.createAccount("300"));
     }
 
     @Test
@@ -32,11 +32,11 @@ public class TransferTest extends BaseTest {
         assertEquals(200, res.getStatus());
         Helpers.assertBalance(accounts.get(0), 0);
         Helpers.assertBalance(accounts.get(1), 300);
-        Helpers.assertBalance(accounts.get(2), -200);
+        Helpers.assertBalance(accounts.get(2), 300);
     }
 
     @Test
-    public void properlyTransferNegativeBalance() throws Exception {
+    public void doesNotTransferNegativeAmount() throws Exception {
         HttpResponse<JsonNode> res = Unirest.post("http://localhost:8080/transfer")
                 .header("accept", "application/json")
                 .body(new JSONObject()
@@ -46,37 +46,45 @@ public class TransferTest extends BaseTest {
                 )
                 .asJson();
 
-        assertEquals(200, res.getStatus());
+        assertEquals(400, res.getStatus());
         JSONObject json = res.getBody().getObject();
-        Helpers.assertDoubleEquals("200", json.getString("fromBalance"));
-        Helpers.assertDoubleEquals("100", json.getString("toBalance"));
-        Helpers.assertBalance(accounts.get(0), 200);
-        Helpers.assertBalance(accounts.get(1), 100);
-        Helpers.assertBalance(accounts.get(2), -200);
+        assertEquals(Main.Messages.NEGATIVE_AMOUNT, json.get("message"));
     }
 
     @Test
-    public void properlyTransferFromNegativeBalance() throws Exception {
+    public void doesNotTransferZeroAmount() throws Exception {
+        HttpResponse<JsonNode> res = Unirest.post("http://localhost:8080/transfer")
+                .header("accept", "application/json")
+                .body(new JSONObject()
+                        .put("from", accounts.get(0))
+                        .put("to", accounts.get(1))
+                        .put("amount", "0")
+                )
+                .asJson();
+
+        assertEquals(400, res.getStatus());
+        JSONObject json = res.getBody().getObject();
+        assertEquals(Main.Messages.ZERO_AMOUNT, json.get("message"));
+    }
+
+    @Test
+    public void doesNotTransferWhenInsufficientFunds() throws Exception {
         HttpResponse<JsonNode> res = Unirest.post("http://localhost:8080/transfer")
                 .header("accept", "application/json")
                 .body(new JSONObject()
                         .put("from", accounts.get(2))
                         .put("to", accounts.get(1))
-                        .put("amount", "150")
+                        .put("amount", "400")
                 )
                 .asJson();
 
-        assertEquals(200, res.getStatus());
+        assertEquals(400, res.getStatus());
         JSONObject json = res.getBody().getObject();
-        Helpers.assertDoubleEquals("-350", json.getString("fromBalance"));
-        Helpers.assertDoubleEquals("350", json.getString("toBalance"));
-        Helpers.assertBalance(accounts.get(0), 100);
-        Helpers.assertBalance(accounts.get(1), 350);
-        Helpers.assertBalance(accounts.get(2), -350);
+        assertEquals(Main.Messages.INSUFFICIENT_FUNDS, json.get("message"));
     }
 
     @Test
-    public void properlyTransferToSameAccount() throws Exception {
+    public void doesNotTransferToSameAccount() throws Exception {
         HttpResponse<JsonNode> res = Unirest.post("http://localhost:8080/transfer")
                 .header("accept", "application/json")
                 .body(new JSONObject()
@@ -86,13 +94,9 @@ public class TransferTest extends BaseTest {
                 )
                 .asJson();
 
-        assertEquals(200, res.getStatus());
+        assertEquals(400, res.getStatus());
         JSONObject json = res.getBody().getObject();
-        Helpers.assertDoubleEquals("-200", json.getString("fromBalance"));
-        Helpers.assertDoubleEquals("-200", json.getString("toBalance"));
-        Helpers.assertBalance(accounts.get(0), 100);
-        Helpers.assertBalance(accounts.get(1), 200);
-        Helpers.assertBalance(accounts.get(2), -200);
+        assertEquals(Main.Messages.TO_AND_FROM_ACCOUNTS_SAME, json.get("message"));
     }
 
     @Test

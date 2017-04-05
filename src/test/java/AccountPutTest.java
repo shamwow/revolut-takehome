@@ -30,20 +30,6 @@ public class AccountPutTest extends BaseTest {
     }
 
     @Test
-    public void properlyAdjustNegatively() throws Exception {
-        System.out.println(accounts.get(0));
-        HttpResponse<JsonNode> res = Unirest.put("http://localhost:8080/accounts/" + accounts.get(0))
-                .header("accept", "application/json")
-                .body(new JSONObject()
-                        .put("balance", "-100.23")
-                )
-                .asJson();
-
-        assertEquals(200, res.getStatus());
-        Helpers.assertBalance(accounts.get(0), -100.23);
-    }
-
-    @Test
     public void invalidAccountNumber() throws Exception {
         HttpResponse<JsonNode> res = Unirest.put("http://localhost:8080/accounts/INVALID_NUMBER")
                 .header("accept", "application/json")
@@ -69,6 +55,20 @@ public class AccountPutTest extends BaseTest {
         assertEquals(400, res.getStatus());
         JSONObject json = res.getBody().getObject();
         assertEquals(Main.Messages.UNPARSEABLE_AMOUNT, json.getString("message"));
+    }
+
+    @Test
+    public void invalidNegativeAmount() throws Exception {
+        HttpResponse<JsonNode> res = Unirest.put("http://localhost:8080/accounts/" + accounts.get(0))
+                .header("accept", "application/json")
+                .body(new JSONObject()
+                        .put("balance", "-100.23")
+                )
+                .asJson();
+
+        assertEquals(400, res.getStatus());
+        JSONObject json = res.getBody().getObject();
+        assertEquals(Main.Messages.NEGATIVE_AMOUNT, json.get("message"));
     }
 
     @Test
