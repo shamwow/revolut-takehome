@@ -4,6 +4,7 @@ import spark.Response;
 
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.TimeUnit;
 
 import static spark.Spark.*;
 import static spark.Spark.stop;
@@ -31,6 +32,13 @@ public class Main {
         throw halt(status, gson.toJson(output));
     }
 
+    private static Account getAccount(String accountNumber, String errorMessage) {
+        if (accountNumber == null || !accounts.containsKey(accountNumber)) {
+            end(400, errorMessage);
+        }
+        return accounts.get(accountNumber);
+    }
+
     private static HashMap<String, String> parse(String body) {
         if (body == null || body.equals("")) {
             return new HashMap<>();
@@ -47,21 +55,28 @@ public class Main {
     }
 
     private static void defineRoutes() {
+        get("/wait", (Request req, Response res) -> {
+            int delay = req.queryParams().contains("seconds") ? Integer.parseInt(req.queryParams("seconds")) : 30;
+            TimeUnit.SECONDS.sleep(delay);
+            return "Done";
+        });
+
         get("/accounts/:number", (Request req, Response res) -> {
-            String account = req.params(":number");
+            String accountNumber = req.params(":number");
+            Account account = getAccount(accountNumber, Messages.INVALID_ACCOUNT_NUMBER);
 
-            // Validation.
-            {
-                if (account == null || !accounts.containsKey(account)) {
-                    end(400, Messages.INVALID_ACCOUNT_NUMBER);
-                }
+            try {
+                account.lock();
+
+                HashMap<String, Object> output = new HashMap<>();
+                output.put("message", Messages.SUCCESS);
+                output.put("balance", "" + account.getBalance());
+                Gson gson = new Gson();
+                return gson.toJson(output);
             }
-
-            HashMap<String, Object> output = new HashMap<>();
-            output.put("message", Messages.SUCCESS);
-            output.put("balance", "" + accounts.get(account).getBalance());
-            Gson gson = new Gson();
-            return gson.toJson(output);
+            finally {
+                account.unlock();
+            }
         });
 
         get("/accounts", (Request req, Response res) -> {
@@ -109,47 +124,53 @@ public class Main {
         });
 
         delete("/accounts/:account", (Request req, Response res) -> {
-            String account = req.params().get(":account");
-            // Validation.
-            {
-                if (account == null || !accounts.containsKey(account)) {
-                    end(400, Messages.INVALID_ACCOUNT_NUMBER);
-                }
+            String accountNumber = req.params(":account");
+            Account account = getAccount(accountNumber, Messages.INVALID_ACCOUNT_NUMBER);
+
+            try {
+                account.lock();
+
+                accounts.remove(accountNumber);
+
+                HashMap<String, Object> output = new HashMap<>();
+                output.put("message", Messages.SUCCESS);
+                Gson gson = new Gson();
+                return gson.toJson(output);
             }
-
-            accounts.remove(account);
-
-            HashMap<String, Object> output = new HashMap<>();
-            output.put("message", Messages.SUCCESS);
-            Gson gson = new Gson();
-            return gson.toJson(output);
+            finally {
+                account.unlock();
+            }
         });
 
         put("/accounts/:account", (Request req, Response res) -> {
             Map<String, String> params = parse(req.body());
-            String account = req.params().get(":account");
+            String accountNumber = req.params(":account");
+            Account account = getAccount(accountNumber, Messages.INVALID_ACCOUNT_NUMBER);
 
-            double amt = 0;
+            try {
+                account.lock();
 
-            // Validation.
-            {
-                if (account == null || !accounts.containsKey(account)) {
-                    end(400, Messages.INVALID_ACCOUNT_NUMBER);
+                double amt = 0;
+
+                // Validation.
+                {
+                    try {
+                        amt = Double.parseDouble(params.get("balance"));
+                    } catch (NumberFormatException | ClassCastException | NullPointerException e) {
+                        end(400, Messages.UNPARSEABLE_AMOUNT);
+                    }
                 }
-                try {
-                    amt = Double.parseDouble(params.get("balance"));
-                }
-                catch (NumberFormatException | ClassCastException | NullPointerException e) {
-                    end(400, Messages.UNPARSEABLE_AMOUNT);
-                }
+
+                account.setBalance(amt);
+
+                HashMap<String, String> output = new HashMap<>();
+                output.put("message", Messages.SUCCESS);
+                Gson gson = new Gson();
+                return gson.toJson(output);
             }
-
-            accounts.get(account).setBalance(amt);
-
-            HashMap<String, String> output = new HashMap<>();
-            output.put("message", Messages.SUCCESS);
-            Gson gson = new Gson();
-            return gson.toJson(output);
+            finally {
+                account.unlock();
+            }
         });
 
         post("/transfer", (Request req, Response res) -> {
@@ -158,31 +179,43 @@ public class Main {
             String to = params.get("to");
             double amt = 0;
 
-            // Validation.
-            {
-                if (from == null || !accounts.containsKey(from)) {
-                    end(400, Messages.INVALID_FROM_ACCOUNT_NUMBER);
+            Account fromAccount = getAccount(from, Messages.INVALID_FROM_ACCOUNT_NUMBER);
+            Account toAccount = getAccount(to, Messages.INVALID_TO_ACCOUNT_NUMBER);
+
+            try {
+                // Acquire locks for accounts in alphabetic order to avoid deadlock.
+                if (from.compareTo(to) < 0) {
+                    fromAccount.lock();
+                    toAccount.lock();
                 }
-                if (to == null || !accounts.containsKey(to)) {
-                    end(400, Messages.INVALID_TO_ACCOUNT_NUMBER);
+                else {
+                    toAccount.lock();
+                    fromAccount.lock();
                 }
-                try {
-                    amt = Double.parseDouble(params.get("amount"));
+
+                // Validation.
+                {
+                    try {
+                        amt = Double.parseDouble(params.get("amount"));
+                    } catch (NumberFormatException | ClassCastException | NullPointerException e) {
+                        end(400, Messages.UNPARSEABLE_AMOUNT);
+                    }
                 }
-                catch (NumberFormatException | ClassCastException | NullPointerException e) {
-                    end(400, Messages.UNPARSEABLE_AMOUNT);
-                }
+
+                fromAccount.adjustBalance(-amt);
+                toAccount.adjustBalance(amt);
+
+                HashMap<String, Object> output = new HashMap<>();
+                output.put("message", Messages.SUCCESS);
+                output.put("fromBalance", "" + fromAccount.getBalance());
+                output.put("toBalance", "" + toAccount.getBalance());
+                Gson gson = new Gson();
+                return gson.toJson(output);
             }
-
-            accounts.get(from).adjustBalance(-amt);
-            accounts.get(to).adjustBalance(amt);
-
-            HashMap<String, Object> output = new HashMap<>();
-            output.put("message", Messages.SUCCESS);
-            output.put("fromBalance", "" + accounts.get(from).getBalance());
-            output.put("toBalance", "" + accounts.get(to).getBalance());
-            Gson gson = new Gson();
-            return gson.toJson(output);
+            finally {
+                toAccount.unlock();
+                fromAccount.unlock();
+            }
         });
     }
 
